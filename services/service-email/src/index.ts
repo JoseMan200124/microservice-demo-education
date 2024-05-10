@@ -1,7 +1,10 @@
 import express from 'express';
+import cors from 'cors';
 
 const app = express();
-const port = 3002; // Asegúrate de usar un puerto único para cada microservicio
+const port = 3004;
+
+app.use(cors());
 
 app.use(express.json());
 
