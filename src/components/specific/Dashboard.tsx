@@ -14,15 +14,21 @@ import {
     LinearProgress,
     List,
     ListItem,
-    Avatar
+    Avatar,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
+type LogType = 'start' | 'end';
 interface LogEntry {
     timestamp: string;
     service: string;
-    message: string;
+    type: LogType;
 }
 
 interface Item {
@@ -37,8 +43,34 @@ interface PokemonData {
     types: { type: { name: string } }[];
 }
 
+const serviceColors: Record<string, string> = {
+    Login:   '#E3F2FD',
+    Items:   '#FFF8E1',
+    Pokémon: '#EDE7F6',
+    Email:   '#FCE4EC'
+};
+const logColors: Record<string, string> = {
+    Login:   '#1976D2',
+    Items:   '#F9A825',
+    Pokémon: '#8E24AA',
+    Email:   '#C2185B'
+};
+
+const AnimatedArrow: React.FC<{ direction: 'forward' | 'back' }> = ({ direction }) => (
+    <motion.span
+        initial={{ x: direction === 'forward' ? -20 : 20, opacity: 0.5 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ yoyo: Infinity, duration: 1, ease: 'easeInOut' }}
+        style={{ display: 'inline-block', verticalAlign: 'middle', margin: '0 4px' }}
+    >
+        {direction === 'forward'
+            ? <ArrowForwardIosIcon fontSize="small" />
+            : <ArrowBackIosNewIcon fontSize="small" />}
+    </motion.span>
+);
+
 const Dashboard: React.FC = () => {
-    // URLs de microservicios
+    // Endpoints
     const loginUrl   = 'http://localhost:3001/login';
     const itemsUrl   = 'http://localhost:3002/items';
     const pokemonUrl = 'http://localhost:3003/pokemon';
@@ -47,64 +79,53 @@ const Dashboard: React.FC = () => {
     // Logs
     const [logs, setLogs] = useState<LogEntry[]>([]);
 
-    // Login
+    // Login state
     const [username, setUsername] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
 
-    // Items
+    // Items state
     const [items, setItems] = useState<Item[]>([]);
     const [newItem, setNewItem] = useState('');
     const [itemsLoading, setItemsLoading] = useState(false);
 
-    // Pokémon
+    // Pokémon state
     const [pokeName, setPokeName] = useState('');
     const [pokemon, setPokemon] = useState<PokemonData | null>(null);
     const [pokeLoading, setPokeLoading] = useState(false);
 
-    // Email
+    // Email state
     const [toEmail, setToEmail] = useState('');
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
-    const [emailResult, setEmailResult] = useState<any>(null);
     const [emailLoading, setEmailLoading] = useState(false);
 
-    // Mapea colores de servicio
-    const serviceColors: Record<string, string> = {
-        Login:    '#E3F2FD',
-        Items:    '#FFF8E1',
-        Pokémon:  '#EDE7F6',
-        Email:    '#FCE4EC'
-    };
-    const logColors: Record<string, string> = {
-        Login:   '#1976D2',
-        Items:   '#F9A825',
-        Pokémon: '#8E24AA',
-        Email:   '#C2185B'
-    };
+    // Snackbar state
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarText, setSnackbarText] = useState('');
 
-    // Añade un log
-    const addLog = (service: string, message: string) => {
-        const ts = new Date().toLocaleTimeString();
-        setLogs(prev => [{ timestamp: ts, service, message }, ...prev]);
+    // Helpers for logs
+    const addLog = (service: string, type: LogType) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs(prev => [{ timestamp, service, type }, ...prev]);
     };
 
     // LOGIN
     const handleLogin = async () => {
-        addLog('Login', '➡️ Petición enviada');
+        addLog('Login', 'start');
         setLoginLoading(true);
         try {
             await axios.post(loginUrl, { username });
         } catch {
             /* simulamos éxito */
         } finally {
-            addLog('Login', '⬅️ Respuesta recibida');
+            addLog('Login', 'end');
             setLoginLoading(false);
         }
     };
 
     // ITEMS
     const fetchItems = async () => {
-        addLog('Items', '➡️ Petición enviada');
+        addLog('Items', 'start');
         setItemsLoading(true);
         try {
             const res = await axios.get<Item[]>(itemsUrl);
@@ -112,13 +133,13 @@ const Dashboard: React.FC = () => {
         } catch {
             /* simulamos éxito */
         } finally {
-            addLog('Items', '⬅️ Respuesta recibida');
+            addLog('Items', 'end');
             setItemsLoading(false);
         }
     };
 
     const handleAddItem = async () => {
-        addLog('Items', '➡️ Petición enviada');
+        addLog('Items', 'start');
         setItemsLoading(true);
         try {
             const res = await axios.post<Item>(itemsUrl, { name: newItem });
@@ -127,14 +148,14 @@ const Dashboard: React.FC = () => {
         } catch {
             /* simulamos éxito */
         } finally {
-            addLog('Items', '⬅️ Respuesta recibida');
+            addLog('Items', 'end');
             setItemsLoading(false);
         }
     };
 
     // POKÉMON
     const handleFetchPokemon = async () => {
-        addLog('Pokémon', '➡️ Petición enviada');
+        addLog('Pokémon', 'start');
         setPokeLoading(true);
         setPokemon(null);
         try {
@@ -143,39 +164,43 @@ const Dashboard: React.FC = () => {
         } catch {
             /* simulamos éxito */
         } finally {
-            addLog('Pokémon', '⬅️ Respuesta recibida');
+            addLog('Pokémon', 'end');
             setPokeLoading(false);
         }
     };
 
     // EMAIL
     const handleSendEmail = async () => {
-        addLog('Email', '➡️ Petición enviada');
+        addLog('Email', 'start');
         setEmailLoading(true);
         try {
             const res = await axios.post(emailUrl, { to: toEmail, subject, body });
-            setEmailResult(res.data);
+            // mostramos el resultado en un toast
+            setSnackbarText(`Email: ${res.data.status}`);
+            setSnackbarOpen(true);
         } catch {
             /* simulamos éxito */
+            setSnackbarText('Email: success (simulado)');
+            setSnackbarOpen(true);
         } finally {
-            addLog('Email', '⬅️ Respuesta recibida');
+            addLog('Email', 'end');
             setEmailLoading(false);
         }
     };
 
-    // Al montar, carga items
+    // Fetch items on mount
     useEffect(() => {
         fetchItems();
     }, []);
 
     return (
-        <Box p={3} bgcolor="#fafafa">
+        <Box p={3} bgcolor="#fafafa" minHeight="100vh">
             <Typography variant="h3" textAlign="center" gutterBottom>
                 🤖 Dashboard de Microservicios
             </Typography>
 
             <Grid container spacing={3}>
-                {/** CARD Login **/}
+                {/* Login */}
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{ backgroundColor: serviceColors.Login }}>
                         <CardHeader title="🔑 Servicio de Login" />
@@ -200,7 +225,7 @@ const Dashboard: React.FC = () => {
                     </Card>
                 </Grid>
 
-                {/** CARD Items **/}
+                {/* Items */}
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{ backgroundColor: serviceColors.Items }}>
                         <CardHeader
@@ -237,7 +262,7 @@ const Dashboard: React.FC = () => {
                     </Card>
                 </Grid>
 
-                {/** CARD Pokémon **/}
+                {/* Pokémon */}
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{ backgroundColor: serviceColors.Pokémon }}>
                         <CardHeader title="🦄 Servicio Pokémon" />
@@ -258,26 +283,34 @@ const Dashboard: React.FC = () => {
                                     BUSCAR
                                 </Button>
                             </Box>
-                            {pokemon && (
-                                <Box textAlign="center" mt={2}>
-                                    <Avatar
-                                        src={pokemon.sprites.front_default}
-                                        alt={pokemon.name}
-                                        sx={{ width: 72, height: 72, mx: 'auto' }}
-                                    />
-                                    <Typography variant="h6" mt={1}>
-                                        #{pokemon.id} {pokemon.name}
-                                    </Typography>
-                                    <Typography>
-                                        Tipos: {pokemon.types.map(t => t.type.name).join(', ')}
-                                    </Typography>
-                                </Box>
-                            )}
+                            <AnimatePresence>
+                                {pokemon && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.5, y: -20 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.5, y: 20 }}
+                                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                                        style={{ textAlign: 'center', marginTop: 16 }}
+                                    >
+                                        <Avatar
+                                            src={pokemon.sprites.front_default}
+                                            alt={pokemon.name}
+                                            sx={{ width: 140, height: 140, mx: 'auto' }}
+                                        />
+                                        <Typography variant="h4" mt={1}>
+                                            #{pokemon.id} {pokemon.name}
+                                        </Typography>
+                                        <Typography>
+                                            Tipos: {pokemon.types.map(t => t.type.name).join(', ')}
+                                        </Typography>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </CardContent>
                     </Card>
                 </Grid>
 
-                {/** CARD Email **/}
+                {/* Email */}
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{ backgroundColor: serviceColors.Email }}>
                         <CardHeader title="📧 Servicio de Email" />
@@ -314,17 +347,12 @@ const Dashboard: React.FC = () => {
                             >
                                 ENVIAR
                             </Button>
-                            {emailResult && (
-                                <Box mt={2} fontFamily="monospace" fontSize="0.875rem">
-                                    Resultado: {JSON.stringify(emailResult)}
-                                </Box>
-                            )}
                         </CardContent>
                     </Card>
                 </Grid>
             </Grid>
 
-            {/** Registro de actividad **/}
+            {/* Registro de actividad */}
             <Box mt={4}>
                 <Typography variant="h6" gutterBottom>
                     📜 Registro de Actividad
@@ -341,14 +369,41 @@ const Dashboard: React.FC = () => {
                     {logs.map((log, i) => (
                         <Box
                             key={i}
-                            sx={{ color: logColors[log.service] || 'text.primary', mb: 0.5 }}
+                            sx={{ color: logColors[log.service] || 'text.primary', mb: 0.5, display: 'flex', alignItems: 'center' }}
                         >
                             [{log.timestamp}]
-                            <strong> {log.service}:</strong> {log.message}
+                            <strong>&nbsp;{log.service}:</strong>
+                            {log.type === 'start' ? (
+                                <>
+                                    <AnimatedArrow direction="forward" />
+                                    Petición enviada
+                                </>
+                            ) : (
+                                <>
+                                    <AnimatedArrow direction="back" />
+                                    Respuesta recibida
+                                </>
+                            )}
                         </Box>
                     ))}
                 </Box>
             </Box>
+
+            {/* Toast (Snackbar) */}
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={3000}
+                onClose={() => setSnackbarOpen(false)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={() => setSnackbarOpen(false)}
+                    severity="success"
+                    sx={{ width: '100%' }}
+                >
+                    {snackbarText}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };
